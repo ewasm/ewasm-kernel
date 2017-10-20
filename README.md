@@ -1,4 +1,6 @@
 # SYNOPSIS - WIP
+
+[![Greenkeeper badge](https://badges.greenkeeper.io/ewasm/ewasm-kernel.svg)](https://greenkeeper.io/)
 [![NPM Package](https://img.shields.io/npm/v/merkle-trie.svg?style=flat-square)](https://www.npmjs.org/package/ewasm-kernel)
 [![Build Status](https://img.shields.io/travis/ewasm/ewasm-kernel.svg?branch=master&style=flat-square)](https://travis-ci.org/ewasm/ewasm-kernel)
   
