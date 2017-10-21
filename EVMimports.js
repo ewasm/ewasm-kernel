@@ -12,6 +12,10 @@ const U128_SIZE_BYTES = 16
 const ADDRESS_SIZE_BYTES = 20
 const U256_SIZE_BYTES = 32
 
+const log = require('loglevel')
+log.setLevel('warn') // hide logs
+//log.setLevel('debug') // for debugging
+
 // The interface exposed to the WebAessembly Core
 module.exports = class Interface {
   constructor (kernel) {
@@ -109,6 +113,7 @@ module.exports = class Interface {
    * @param {integer} offset
    */
   getAddress (offset) {
+    log.debug('EVMImports.js getAddress')
     this.takeGas(2)
 
     this.setMemory(offset, ADDRESS_SIZE_BYTES, this.kernel.environment.address.toMemory())
@@ -121,6 +126,7 @@ module.exports = class Interface {
    * @param {integer} resultOffset
    */
   getBalance (addressOffset, offset, cbIndex) {
+    log.debug('EVMImports.js getBalance')
     this.takeGas(20)
 
     const path = [...this.getMemory(addressOffset, ADDRESS_SIZE_BYTES), 'balance']
@@ -140,6 +146,7 @@ module.exports = class Interface {
    * @param {integer} offset
    */
   getTxOrigin (offset) {
+    log.debug('EVMImports.js getTxOrigin')
     this.takeGas(2)
 
     this.setMemory(offset, ADDRESS_SIZE_BYTES, this.kernel.environment.origin.toMemory())
@@ -151,6 +158,7 @@ module.exports = class Interface {
    * @param {integer} offset
    */
   getCaller (offset) {
+    log.debug('EVMImports.js getCaller')
     this.takeGas(2)
 
     this.setMemory(offset, ADDRESS_SIZE_BYTES, this.kernel.environment.caller.toMemory())
@@ -162,6 +170,7 @@ module.exports = class Interface {
    * @param {integer} offset
    */
   getCallValue (offset) {
+    log.debug('EVMImports.js getCallValue')
     this.takeGas(2)
 
     this.setMemory(offset, U128_SIZE_BYTES, this.kernel.environment.callValue.toMemory(U128_SIZE_BYTES))
@@ -173,6 +182,7 @@ module.exports = class Interface {
    * @return {integer}
    */
   getCallDataSize () {
+    log.debug('EVMImports.js getCallDataSize')
     this.takeGas(2)
 
     return this.kernel.environment.callData.length
@@ -186,6 +196,7 @@ module.exports = class Interface {
    * @param {integer} length the length of data to copy
    */
   callDataCopy (offset, dataOffset, length) {
+    log.debug('EVMImports.js callDataCopy')
     this.takeGas(3 + Math.ceil(length / 32) * 3)
 
     if (length) {
@@ -201,6 +212,7 @@ module.exports = class Interface {
    * @param {integer} dataOffset the offset in the input data
    */
   callDataCopy256 (offset, dataOffset) {
+    log.debug('EVMImports.js callDataCopy256')
     this.takeGas(3)
     const callData = this.kernel.environment.callData.slice(dataOffset, dataOffset + 32)
     this.setMemory(offset, U256_SIZE_BYTES, callData)
@@ -211,6 +223,7 @@ module.exports = class Interface {
    * @return {interger}
    */
   getCodeSize (cbIndex) {
+    log.debug('EVMImports.js getCodeSize')
     this.takeGas(2)
 
     const opPromise = this.kernel.environment.state
@@ -228,6 +241,7 @@ module.exports = class Interface {
    * @param {integer} length the length of code to copy
    */
   codeCopy (resultOffset, codeOffset, length, cbIndex) {
+    log.debug('EVMimports.js codeCopy')
     this.takeGas(3 + Math.ceil(length / 32) * 3)
 
     let opPromise
@@ -255,6 +269,7 @@ module.exports = class Interface {
    * @return {integer}
    */
   getExternalCodeSize (addressOffset, cbOffset) {
+    log.debug('EVMImports.js getExternalCodeSize')
     this.takeGas(20)
     const address = [...this.getMemory(addressOffset, ADDRESS_SIZE_BYTES), 'code']
     const opPromise = this.kernel.environment.state.root
@@ -274,6 +289,7 @@ module.exports = class Interface {
    * @param {integer} length the length of code to copy
    */
   externalCodeCopy (addressOffset, resultOffset, codeOffset, length, cbIndex) {
+    log.debug('EVMImports.js externalCodeCopy')
     this.takeGas(20 + Math.ceil(length / 32) * 3)
 
     const address = [...this.getMemory(addressOffset, ADDRESS_SIZE_BYTES), 'code']
@@ -302,6 +318,7 @@ module.exports = class Interface {
    * @return {integer}
    */
   getTxGasPrice () {
+    log.debug('EVMImports.js getTxGasPrice')
     this.takeGas(2)
 
     return this.kernel.environment.gasPrice
@@ -313,6 +330,7 @@ module.exports = class Interface {
    * @param {integer} offset the offset to load the hash into
    */
   getBlockHash (number, offset, cbOffset) {
+    log.debug('EVMImports.js getBlockHash')
     this.takeGas(20)
 
     const diff = this.kernel.environment.block.number - number
@@ -335,6 +353,8 @@ module.exports = class Interface {
    * @param offset
    */
   getBlockCoinbase (offset) {
+    log.debug('EVMImports.js getBlockCoinbase')
+    log.debug('this.kernel.environment.coinbase:', this.kernel.environment.coinbase)
     this.takeGas(2)
 
     this.setMemory(offset, ADDRESS_SIZE_BYTES, this.kernel.environment.coinbase.toMemory())
@@ -345,6 +365,7 @@ module.exports = class Interface {
    * @return {integer}
    */
   getBlockTimestamp () {
+    log.debug('EVMImports.js getBlockTimestamp')
     this.takeGas(2)
 
     return this.kernel.environment.block.timestamp
@@ -355,6 +376,7 @@ module.exports = class Interface {
    * @return {integer}
    */
   getBlockNumber () {
+    log.debug('EVMImports.js getBlockNumber')
     this.takeGas(2)
 
     return this.kernel.environment.block.number
@@ -365,6 +387,7 @@ module.exports = class Interface {
    * @return {integer}
    */
   getBlockDifficulty (offset) {
+    log.debug('EVMImports.js getBlockDifficulty')
     this.takeGas(2)
 
     this.setMemory(offset, U256_SIZE_BYTES, this.kernel.environment.block.difficulty.toMemory())
@@ -375,6 +398,7 @@ module.exports = class Interface {
    * @return {integer}
    */
   getBlockGasLimit () {
+    log.debug('EVMImports.js getBlockGasLimit')
     this.takeGas(2)
 
     return this.kernel.environment.block.gasLimit
@@ -387,6 +411,7 @@ module.exports = class Interface {
    * @param {integer} number of topics
    */
   log (dataOffset, length, numberOfTopics, topic1, topic2, topic3, topic4) {
+    log.debug('EVMImports.js log')
     if (numberOfTopics < 0 || numberOfTopics > 4) {
       throw new Error('Invalid numberOfTopics')
     }
@@ -427,6 +452,7 @@ module.exports = class Interface {
    * @return {integer} Return 1 or 0 depending on if the VM trapped on the message or not
    */
   create (valueOffset, dataOffset, length, resultOffset, cbIndex) {
+    log.debug('EVMImports.js create')
     this.takeGas(32000)
 
     const value = U256.fromMemory(this.getMemory(valueOffset, U128_SIZE_BYTES))
@@ -461,6 +487,7 @@ module.exports = class Interface {
    * @return {integer} Returns 1 or 0 depending on if the VM trapped on the message or not
    */
   _call (gasHigh, gasLow, addressOffset, valueOffset, dataOffset, dataLength, resultOffset, resultLength, cbIndex) {
+    log.debug('EVMimports.js _call')
     this.takeGas(40)
 
     const gas = from64bit(gasHigh, gasLow)
@@ -474,12 +501,14 @@ module.exports = class Interface {
       this.takeGas(-gas)
     }
 
+    log.debug('EVMimports.js _call calling this.kernel.environment.state.root.get(address)')
     let opPromise = this.kernel.environment.state.root.get(address)
     .catch(() => {
       // why does this exist?
       this.takeGas(25000)
     })
 
+    log.debug('EVMimports.js _call pushing opPromise to pushOpsQueue')
     // wait for all the prevouse async ops to finish before running the callback
     this.kernel.pushOpsQueue(opPromise, cbIndex, () => {
       return 1
@@ -498,6 +527,7 @@ module.exports = class Interface {
    * @return {integer} Returns 1 or 0 depending on if the VM trapped on the message or not
    */
   callCode (gas, addressOffset, valueOffset, dataOffset, dataLength, resultOffset, resultLength, cbIndex) {
+    log.debug('EVMimports.js callCode')
     this.takeGas(40)
     // Load the params from mem
     const path = [...this.getMemory(addressOffset, ADDRESS_SIZE_BYTES), 'code']
@@ -507,6 +537,9 @@ module.exports = class Interface {
     if (!value.isZero()) {
       this.takeGas(6700)
     }
+
+    //log.debug('EVMimports.js callCode this.kernel.environment.state:', this.kernel.environment.state)
+    // environment.state is a Vertex object
 
     // TODO: should be message?
     const opPromise = this.kernel.environment.state.root.get(path)
@@ -534,6 +567,7 @@ module.exports = class Interface {
    * @return {integer} Returns 1 or 0 depending on if the VM trapped on the message or not
    */
   callDelegate (gas, addressOffset, dataOffset, dataLength, resultOffset, resultLength) {
+    log.debug('EVMimports.js callDelegate')
     // FIXME: count properly
     this.takeGas(40)
 
@@ -551,6 +585,7 @@ module.exports = class Interface {
    * @param {interger} valueOffset the memory offset to load the value from
    */
   storageStore (pathOffset, valueOffset, cbIndex) {
+    log.debug('EVMimports.js storageStore')
     this.takeGas(5000)
     const path = ['storage', ...this.getMemory(pathOffset, U256_SIZE_BYTES)]
     // copy the value
@@ -584,6 +619,7 @@ module.exports = class Interface {
    * @param {interger} resultOffset the memory offset to load the value from
    */
   storageLoad (pathOffset, resultOffset, cbIndex) {
+    log.debug('EVMimports.js storageLoad')
     this.takeGas(50)
 
     // convert the path to an array
@@ -615,6 +651,7 @@ module.exports = class Interface {
    * @param {integer} offset the offset to load the address from
    */
   selfDestruct (addressOffset) {
+    log.debug('EVMimports.js selfDestruct')
     this.kernel.environment.selfDestruct = true
     this.kernel.environment.selfDestructAddress = this.getMemory(addressOffset, ADDRESS_SIZE_BYTES)
     this.kernel.environment.gasRefund += 24000
