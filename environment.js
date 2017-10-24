@@ -11,6 +11,7 @@ module.exports = class Environment {
     const defaults = {
       block: new Block(),
       blockchain: fakeBlockChain,
+      coinbase: new Address('0x0000000000000000000000000000000000000000'),
       // gas tank
       gasPrice: 0,
       gasLeft: 1000000,
