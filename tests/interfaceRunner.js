@@ -1,7 +1,6 @@
 const tape = require('tape')
 const fs = require('fs')
 const path = require('path')
-const Vertex = require('merkle-trie')
 const Address = require('../deps/address')
 const U256 = require('../deps/u256')
 
@@ -20,7 +19,6 @@ function runTests (tests) {
     testName = testName.split('.')[0]
     tape(testName, async (t) => {
       // Compile Command
-      const rootVertex = new Vertex()
       const code = fs.readFileSync(`${dir}/${testName}.wasm`)
       const envData = JSON.parse(fs.readFileSync(`${dir}/${testName}.json`).toString())
 
@@ -28,32 +26,14 @@ function runTests (tests) {
       envData.address = new Address(envData.address)
       envData.coinbase = new Address(envData.coinbase)
       envData.origin = new Address(envData.origin)
-      envData.callData = new Buffer(envData.callData.slice(2), 'hex')
+      envData.callData = Buffer.from(envData.callData.slice(2), 'hex')
       envData.callValue = new U256(envData.callValue)
 
       for (let address in envData.state) {
-        const account = envData.state[address]
-        const accountVertex = new Vertex()
-
-        accountVertex.set('code', new Vertex({
-          value: new Buffer(account.code.slice(2), 'hex')
-        }))
-
-        accountVertex.set('balance', new Vertex({
-          value: new Buffer(account.balance.slice(2), 'hex')
-        }))
-
-        for (let key in account.storage) {
-          accountVertex.set(['storage', ...new Buffer(key.slice(2), 'hex')], new Vertex({
-            value: new Buffer(account.storage[key].slice(2), 'hex')
-          }))
-        }
-
-        const path = [...new Buffer(address.slice(2), 'hex')]
-        rootVertex.set(path, accountVertex)
+        envData.state[address]['storage'] = {}
       }
 
-      envData.state = await rootVertex.get([...envData.address.toBuffer()])
+      // state is in envData.state
       const kernel = new Kernel({code: code})
       const env = new Environment(envData)
 
