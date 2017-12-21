@@ -31,7 +31,7 @@ To run the test you need
 * `cd ../..`
 * `npm test`
 
-A subset of tests can be run by modifying the `test` script in `package.json` using the `--files` argument to specify a number of tests to run (separated by comma).
+A subset of tests can be run by modifying the `test` script in `package.json` using the `--files` argument with comma-separated filenames.
 
 # API
 todo
