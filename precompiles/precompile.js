@@ -3,7 +3,7 @@
 
 function craftResponse (status, msg) {
   // NOTE: why does this has to be so hard?
-  return Uint8Array.from(Buffer.concat([ new Buffer([ status ]), new Buffer(msg) ]))
+  return Uint8Array.from(Buffer.concat([ Buffer.from([ status ]), Buffer.from(msg) ]))
 }
 
 module.exports.meteringInjector = function (call) {

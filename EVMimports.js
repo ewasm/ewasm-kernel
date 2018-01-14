@@ -5,7 +5,6 @@
 const fs = require('fs')
 const path = require('path')
 const ethUtil = require('ethereumjs-util')
-const Vertex = require('merkle-trie')
 const U256 = require('./deps/u256.js')
 
 const U128_SIZE_BYTES = 16
@@ -14,7 +13,7 @@ const U256_SIZE_BYTES = 32
 
 const log = require('loglevel')
 log.setLevel('warn') // hide logs
-//log.setLevel('debug') // for debugging
+// log.setLevel('debug') // for debugging
 
 // The interface exposed to the WebAessembly Core
 module.exports = class Interface {
@@ -129,10 +128,13 @@ module.exports = class Interface {
     log.debug('EVMImports.js getBalance')
     this.takeGas(20)
 
-    const path = [...this.getMemory(addressOffset, ADDRESS_SIZE_BYTES), 'balance']
-    const opPromise = this.kernel.environment.state.root.get(path)
-      .then(vertex => new U256(vertex.value))
-      .catch(() => new U256(0))
+    const address = this.getMemory(addressOffset, ADDRESS_SIZE_BYTES)
+    const addressHex = '0x' + Buffer.from(address).toString('hex')
+
+    const balance = this.kernel.environment.state[addressHex].balance
+    const balanceU256 = new U256(balance)
+
+    const opPromise = Promise.resolve(balanceU256)
 
     this.kernel.pushOpsQueue(opPromise, cbIndex, balance => {
       this.setMemory(offset, U128_SIZE_BYTES, balance.toMemory(U128_SIZE_BYTES))
@@ -354,7 +356,6 @@ module.exports = class Interface {
    */
   getBlockCoinbase (offset) {
     log.debug('EVMImports.js getBlockCoinbase')
-    log.debug('this.kernel.environment.coinbase:', this.kernel.environment.coinbase)
     this.takeGas(2)
 
     this.setMemory(offset, ADDRESS_SIZE_BYTES, this.kernel.environment.coinbase.toMemory())
@@ -463,7 +464,7 @@ module.exports = class Interface {
     let opPromise
 
     if (value.gt(this.kernel.environment.value)) {
-      opPromise = Promise.resolve(new Buffer(20).fill(0))
+      opPromise = Promise.resolve(Buffer.alloc(20))
     } else {
       // todo actully run the code
       opPromise = Promise.resolve(ethUtil.generateAddress(this.kernel.environment.address, this.kernel.environment.nonce))
@@ -492,7 +493,7 @@ module.exports = class Interface {
 
     const gas = from64bit(gasHigh, gasLow)
     // Load the params from mem
-    const address = [...this.getMemory(addressOffset, ADDRESS_SIZE_BYTES)]
+    // const toAddress = [...this.getMemory(addressOffset, ADDRESS_SIZE_BYTES)]
     const value = new U256(this.getMemory(valueOffset, U128_SIZE_BYTES))
 
     // Special case for non-zero value; why does this exist?
@@ -501,14 +502,8 @@ module.exports = class Interface {
       this.takeGas(-gas)
     }
 
-    log.debug('EVMimports.js _call calling this.kernel.environment.state.root.get(address)')
-    let opPromise = this.kernel.environment.state.root.get(address)
-    .catch(() => {
-      // why does this exist?
-      this.takeGas(25000)
-    })
+    const opPromise = Promise.resolve(0)
 
-    log.debug('EVMimports.js _call pushing opPromise to pushOpsQueue')
     // wait for all the prevouse async ops to finish before running the callback
     this.kernel.pushOpsQueue(opPromise, cbIndex, () => {
       return 1
@@ -537,9 +532,6 @@ module.exports = class Interface {
     if (!value.isZero()) {
       this.takeGas(6700)
     }
-
-    //log.debug('EVMimports.js callCode this.kernel.environment.state:', this.kernel.environment.state)
-    // environment.state is a Vertex object
 
     // TODO: should be message?
     const opPromise = this.kernel.environment.state.root.get(path)
@@ -581,53 +573,62 @@ module.exports = class Interface {
   /**
    * store a value at a given path in long term storage which are both loaded
    * from Memory
-   * @param {interger} pathOffest the memory offset to load the the path from
-   * @param {interger} valueOffset the memory offset to load the value from
+   * @param {interger} keyOffest the memory offset of the storage key
+   * @param {interger} valueOffset the memory offset of the storage value
    */
-  storageStore (pathOffset, valueOffset, cbIndex) {
+  storageStore (keyOffset, valueOffset, cbIndex) {
     log.debug('EVMimports.js storageStore')
     this.takeGas(5000)
-    const path = ['storage', ...this.getMemory(pathOffset, U256_SIZE_BYTES)]
-    // copy the value
+
+    const key = this.getMemory(keyOffset, U256_SIZE_BYTES)
+    const keyHex = U256.fromMemory(key).toString(16)
+
     const value = this.getMemory(valueOffset, U256_SIZE_BYTES).slice(0)
+    const valueHex = U256.fromMemory(value).toString(16)
     const valIsZero = value.every((i) => i === 0)
-    const opPromise = this.kernel.environment.state.get(path)
-      .then(vertex => vertex.value)
-      .catch(() => null)
+
+    const contextAccount = this.kernel.environment.address
+    const oldStorageVal = this.kernel.environment.state[contextAccount]['storage'][keyHex]
+    const opPromise = Promise.resolve(oldStorageVal)
 
     this.kernel.pushOpsQueue(opPromise, cbIndex, oldValue => {
       if (valIsZero && oldValue) {
         // delete a value
         this.kernel.environment.gasRefund += 15000
-        this.kernel.environment.state.del(path)
+        delete this.kernel.environment.state[contextAccount]['storage'][keyHex]
       } else {
         if (!valIsZero && !oldValue) {
           // creating a new value
           this.takeGas(15000)
         }
         // update
-        this.kernel.environment.state.set(path, new Vertex({
-          value: value
-        }))
+        this.kernel.environment.state[contextAccount]['storage'][keyHex] = valueHex
       }
     })
   }
 
   /**
    * reterives a value at a given path in long term storage
-   * @param {interger} pathOffest the memory offset to load the the path from
+   * @param {interger} keyOffset the memory offset to load the the path from
    * @param {interger} resultOffset the memory offset to load the value from
    */
-  storageLoad (pathOffset, resultOffset, cbIndex) {
+  storageLoad (keyOffset, resultOffset, cbIndex) {
     log.debug('EVMimports.js storageLoad')
+    log.trace('getBalance kernel.environment.state:', this.kernel.environment.state)
     this.takeGas(50)
 
-    // convert the path to an array
-    const path = ['storage', ...this.getMemory(pathOffset, U256_SIZE_BYTES)]
-    // get the value from the state
-    const opPromise = this.kernel.environment.state.get(path)
-      .then(vertex => vertex.value)
-      .catch(() => new Uint8Array(32))
+    const key = this.getMemory(keyOffset, U256_SIZE_BYTES)
+    const keyHex = U256.fromMemory(key).toString(16)
+
+    const contextAccount = this.kernel.environment.address
+    let value = this.kernel.environment.state[contextAccount]['storage'][keyHex]
+    if (typeof value === 'undefined') {
+      value = new Uint8Array(32)
+    } else {
+      value = (new U256(value)).toMemory()
+    }
+
+    const opPromise = Promise.resolve(value)
 
     this.kernel.pushOpsQueue(opPromise, cbIndex, value => {
       this.setMemory(resultOffset, U256_SIZE_BYTES, value)
