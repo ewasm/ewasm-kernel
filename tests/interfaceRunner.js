@@ -8,11 +8,21 @@ const Kernel = require('../index.js')
 const Environment = require('../testEnvironment.js')
 
 const dir = path.join(__dirname, '/interface')
+const argv = require('minimist')(process.argv.slice(2))
+
 // get the test names
 let tests = fs.readdirSync(dir).filter((file) => file.endsWith('.wast'))
+
+//if files option is specified, only run those tests
+if(argv.files) {
+  tests = tests.filter((e) => { return argv.files.split(',').includes(e) })
+}
+
 // tests = ['callDataSize.wast']
 
-runTests(tests)
+if (tests.length > 0) {
+  runTests(tests)
+}
 
 function runTests (tests) {
   for (let testName of tests) {
