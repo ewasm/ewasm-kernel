@@ -3,7 +3,7 @@
   "callData": "0x00",
   "state": {
       "0x5d48c1018904a172886829bbbd9c6f4a2d06c47b": {
-        "balance": "0x056bc75e2d63100000",
+        "balance": "0xde0b6b3a7640000",
         "code": "0x00",
         "nonce": "0x00"
       }
