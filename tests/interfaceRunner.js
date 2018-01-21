@@ -13,8 +13,8 @@ const argv = require('minimist')(process.argv.slice(2))
 // get the test names
 let tests = fs.readdirSync(dir).filter((file) => file.endsWith('.wast'))
 
-//if files option is specified, only run those tests
-if(argv.files) {
+// if files option is specified, only run those tests
+if (argv.files) {
   tests = tests.filter((e) => { return argv.files.split(',').includes(e) })
 }
 
