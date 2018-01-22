@@ -31,8 +31,15 @@ module.exports = class Kernel extends Vertex {
    * The Kernel Stores all of its state in the Environment. The Interface is used
    * to by the VM to retrive infromation from the Environment.
    */
+  // TODO: make this sync
+  /*
   async run (environment = new Environment({state: this}), imports = this.imports) {
     await this._vm.run(environment, imports)
+  }
+  */
+
+  run (environment = new Environment({state: this}), imports = this.imports) {
+    return this._vm.run(environment, imports)
   }
 
   async messageReceiver (message) {

@@ -26,7 +26,7 @@ module.exports = class Interface {
         'useGas': this._useGas.bind(this),
         'getGasLeftHigh': this._getGasLeftHigh.bind(this),
         'getGasLeftLow': this._getGasLeftLow.bind(this),
-        'call': this._call.bind(this)
+        'callContract': this._call.bind(this)
       }
     })
   }
@@ -59,6 +59,7 @@ module.exports = class Interface {
       'getBlockGasLimit',
       'log',
       'create',
+      '_call',
       'callCode',
       'callDelegate',
       'storageStore',
@@ -131,14 +132,15 @@ module.exports = class Interface {
     const address = this.getMemory(addressOffset, ADDRESS_SIZE_BYTES)
     const addressHex = '0x' + Buffer.from(address).toString('hex')
 
-    const balance = this.kernel.environment.state[addressHex].balance
+    let balance = null
+    if (this.kernel.environment.state.hasOwnProperty(addressHex)) {
+      balance = this.kernel.environment.state[addressHex].balance
+    } else {
+      balance = '0x0'
+    }
+
     const balanceU256 = new U256(balance)
-
-    const opPromise = Promise.resolve(balanceU256)
-
-    this.kernel.pushOpsQueue(opPromise, cbIndex, balance => {
-      this.setMemory(offset, U128_SIZE_BYTES, balance.toMemory(U128_SIZE_BYTES))
-    })
+    this.setMemory(offset, U128_SIZE_BYTES, balanceU256.toMemory(U128_SIZE_BYTES).reverse())
   }
 
   /**
@@ -228,12 +230,7 @@ module.exports = class Interface {
     log.debug('EVMImports.js getCodeSize')
     this.takeGas(2)
 
-    const opPromise = this.kernel.environment.state
-      .get('code')
-      .then(vertex => vertex.value.length)
-
-    // wait for all the prevouse async ops to finish before running the callback
-    this.kernel.pushOpsQueue(opPromise, cbIndex, length => length)
+    return this.kernel.environment.code.length
   }
 
   /**
@@ -246,23 +243,19 @@ module.exports = class Interface {
     log.debug('EVMimports.js codeCopy')
     this.takeGas(3 + Math.ceil(length / 32) * 3)
 
-    let opPromise
+    const contextAccount = this.kernel.environment.address
+    let addressCode = Buffer.from([])
+    let codeCopied = Buffer.from([])
 
     if (length) {
-      opPromise = this.kernel.environment.state
-        .get('code')
-        .then(vertex => vertex.value)
-    } else {
-      opPromise = Promise.resolve([])
+      if (this.kernel.environment.state[contextAccount]) {
+        const hexCode = this.kernel.environment.state[contextAccount].code.slice(2)
+        addressCode = Buffer.from(hexCode, 'hex')
+        codeCopied = addressCode.slice(codeOffset, codeOffset + length)
+      }
     }
 
-    // wait for all the prevouse async ops to finish before running the callback
-    this.kernel.pushOpsQueue(opPromise, cbIndex, code => {
-      if (code.length) {
-        code = code.slice(codeOffset, codeOffset + length)
-        this.setMemory(resultOffset, length, code)
-      }
-    })
+    this.setMemory(resultOffset, length, codeCopied)
   }
 
   /**
@@ -272,15 +265,19 @@ module.exports = class Interface {
    */
   getExternalCodeSize (addressOffset, cbOffset) {
     log.debug('EVMImports.js getExternalCodeSize')
+    log.trace('this.kernel.environment.state', this.kernel.environment.state)
     this.takeGas(20)
-    const address = [...this.getMemory(addressOffset, ADDRESS_SIZE_BYTES), 'code']
-    const opPromise = this.kernel.environment.state.root
-      .get(address)
-      .then(vertex => vertex.value.length)
-      .catch(() => 0)
 
-    // wait for all the prevouse async ops to finish before running the callback
-    this.kernel.pushOpsQueue(opPromise, cbOffset, length => length)
+    const address = this.getMemory(addressOffset, ADDRESS_SIZE_BYTES)
+    const addressHex = '0x' + Buffer.from(address).toString('hex')
+
+    let addressCode = []
+    if (this.kernel.environment.state[addressHex]) {
+      const hexCode = this.kernel.environment.state[addressHex].code.slice(2)
+      addressCode = Buffer.from(hexCode, 'hex')
+    }
+
+    return addressCode.length
   }
 
   /**
@@ -294,25 +291,23 @@ module.exports = class Interface {
     log.debug('EVMImports.js externalCodeCopy')
     this.takeGas(20 + Math.ceil(length / 32) * 3)
 
-    const address = [...this.getMemory(addressOffset, ADDRESS_SIZE_BYTES), 'code']
-    let opPromise
+    log.trace('this.kernel.environment.state:', this.kernel.environment.state)
+
+    const address = this.getMemory(addressOffset, ADDRESS_SIZE_BYTES)
+    const addressHex = '0x' + Buffer.from(address).toString('hex')
+
+    let addressCode = Buffer.from([])
 
     if (length) {
-      opPromise = this.kernel.environment.state.root
-        .get(address)
-        .then(vertex => vertex.value)
-        .catch(() => [])
-    } else {
-      opPromise = Promise.resolve([])
+      if (this.kernel.environment.state[addressHex]) {
+        const hexCode = this.kernel.environment.state[addressHex].code.slice(2)
+        addressCode = Buffer.from(hexCode, 'hex')
+      }
     }
 
-    // wait for all the prevouse async ops to finish before running the callback
-    this.kernel.pushOpsQueue(opPromise, cbIndex, code => {
-      if (code.length) {
-        code = code.slice(codeOffset, codeOffset + length)
-        this.setMemory(resultOffset, length, code)
-      }
-    })
+    const codeCopied = addressCode.slice(codeOffset, codeOffset + length)
+
+    this.setMemory(resultOffset, length, codeCopied)
   }
 
   /**
@@ -336,18 +331,18 @@ module.exports = class Interface {
     this.takeGas(20)
 
     const diff = this.kernel.environment.block.number - number
-    let opPromise
-
+    let hash
     if (diff > 256 || diff <= 0) {
-      opPromise = Promise.resolve(new U256(0))
+      hash = new U256(0)
     } else {
-      opPromise = this.kernel.environment.getBlockHash(number)
+      hash = this.kernel.environment.getBlockHash(number)
     }
+    log.debug('returning hash:', hash)
+    log.debug('hash.toMemory:', hash.toMemory())
 
-    // wait for all the prevouse async ops to finish before running the callback
-    this.kernel.pushOpsQueue(opPromise, cbOffset, hash => {
-      this.setMemory(offset, U256_SIZE_BYTES, hash.toMemory())
-    })
+    // do bswap256 on the hash here?
+    // reverse() replaces the bswap256
+    this.setMemory(offset, U256_SIZE_BYTES, hash.toMemory().reverse())
   }
 
   /**
@@ -358,7 +353,8 @@ module.exports = class Interface {
     log.debug('EVMImports.js getBlockCoinbase')
     this.takeGas(2)
 
-    this.setMemory(offset, ADDRESS_SIZE_BYTES, this.kernel.environment.coinbase.toMemory())
+    const coinbaseAddress = this.kernel.environment.coinbase
+    this.setMemory(offset, ADDRESS_SIZE_BYTES, coinbaseAddress.toMemory())
   }
 
   /**
@@ -457,23 +453,16 @@ module.exports = class Interface {
     this.takeGas(32000)
 
     const value = U256.fromMemory(this.getMemory(valueOffset, U128_SIZE_BYTES))
-    // if (length) {
-    //   const code = this.getMemory(dataOffset, length).slice(0)
-    // }
 
-    let opPromise
-
+    let createdAddress
     if (value.gt(this.kernel.environment.value)) {
-      opPromise = Promise.resolve(Buffer.alloc(20))
+      createdAddress = Buffer.alloc(20)
     } else {
-      // todo actully run the code
-      opPromise = Promise.resolve(ethUtil.generateAddress(this.kernel.environment.address, this.kernel.environment.nonce))
+      // TODO: actually run the code
+      createdAddress = ethUtil.generateAddress(this.kernel.environment.address, this.kernel.environment.nonce)
     }
 
-    // wait for all the prevouse async ops to finish before running the callback
-    this.kernel.pushOpsQueue(opPromise, cbIndex, address => {
-      this.setMemory(resultOffset, ADDRESS_SIZE_BYTES, address)
-    })
+    this.setMemory(resultOffset, ADDRESS_SIZE_BYTES, createdAddress)
   }
 
   /**
@@ -487,14 +476,40 @@ module.exports = class Interface {
    * @param {integer} gas
    * @return {integer} Returns 1 or 0 depending on if the VM trapped on the message or not
    */
-  _call (gasHigh, gasLow, addressOffset, valueOffset, dataOffset, dataLength, resultOffset, resultLength, cbIndex) {
+  // _call (gasHigh, gasLow, addressOffset, valueOffset, dataOffset, dataLength, resultOffset, resultLength, cbIndex) {
+  // cbIndex was for async method
+  _call (gasHigh, gasLow, addressOffset, valueOffset, dataOffset, dataLength, resultOffset, resultLength) {
     log.debug('EVMimports.js _call')
     this.takeGas(40)
 
+    /*
+    # ABAcalls1 ABAcalls1
+    vm.js calling instance.exports.main()...
+    EVMimports.js _call
+    EVMimports.js _call gas args: 2328 1316133889
+    EVMimports.js _call addressOffset: 172
+    EVMimports.js _call valueOffset: 144
+    EVMimports.js _call dataOffset: 33832
+    EVMimports.js _call dataLength: 0
+    EVMimports.js _call resultOffset: 33832
+    EVMimports.js _call resultLength: 0
+    EVMimports.js _call got from memory, value: U256 { _value: <BN: 18> }
+    */
+
+    log.debug('EVMimports.js _call gasHigh gasHigh:', gasHigh, gasLow)
+    log.debug('EVMimports.js _call addressOffset:', addressOffset)
+    log.debug('EVMimports.js _call valueOffset:', valueOffset)
+    log.debug('EVMimports.js _call dataOffset:', dataOffset)
+    log.debug('EVMimports.js _call dataLength:', dataLength)
+    log.debug('EVMimports.js _call resultOffset:', resultOffset)
+    log.debug('EVMimports.js _call resultLength:', resultLength)
+
     const gas = from64bit(gasHigh, gasLow)
+
     // Load the params from mem
     // const toAddress = [...this.getMemory(addressOffset, ADDRESS_SIZE_BYTES)]
     const value = new U256(this.getMemory(valueOffset, U128_SIZE_BYTES))
+    log.debug('EVMimports.js _call got from memory, value:', value)
 
     // Special case for non-zero value; why does this exist?
     if (!value.isZero()) {
@@ -502,12 +517,7 @@ module.exports = class Interface {
       this.takeGas(-gas)
     }
 
-    const opPromise = Promise.resolve(0)
-
-    // wait for all the prevouse async ops to finish before running the callback
-    this.kernel.pushOpsQueue(opPromise, cbIndex, () => {
-      return 1
-    })
+    return 1
   }
 
   /**
@@ -524,26 +534,17 @@ module.exports = class Interface {
   callCode (gas, addressOffset, valueOffset, dataOffset, dataLength, resultOffset, resultLength, cbIndex) {
     log.debug('EVMimports.js callCode')
     this.takeGas(40)
-    // Load the params from mem
-    const path = [...this.getMemory(addressOffset, ADDRESS_SIZE_BYTES), 'code']
+
     const value = U256.fromMemory(this.getMemory(valueOffset, U128_SIZE_BYTES))
 
-    // Special case for non-zero value; why does this exist?
+    // for test case callcodeToReturn1
     if (!value.isZero()) {
       this.takeGas(6700)
     }
 
-    // TODO: should be message?
-    const opPromise = this.kernel.environment.state.root.get(path)
-    .catch(() => {
-      // TODO: handle errors
-      // the value was not found
-      return null
-    })
+    // to actually run code, use this.environment.callCode?
 
-    this.kernel.pushOpsQueue(opPromise, cbIndex, oldValue => {
-      return 1
-    })
+    return 1
   }
 
   /**
@@ -579,6 +580,7 @@ module.exports = class Interface {
   storageStore (keyOffset, valueOffset, cbIndex) {
     log.debug('EVMimports.js storageStore')
     this.takeGas(5000)
+    // log.debug('getBalance kernel.environment.state:', this.kernel.environment.state)
 
     const key = this.getMemory(keyOffset, U256_SIZE_BYTES)
     const keyHex = U256.fromMemory(key).toString(16)
@@ -589,22 +591,20 @@ module.exports = class Interface {
 
     const contextAccount = this.kernel.environment.address
     const oldStorageVal = this.kernel.environment.state[contextAccount]['storage'][keyHex]
-    const opPromise = Promise.resolve(oldStorageVal)
 
-    this.kernel.pushOpsQueue(opPromise, cbIndex, oldValue => {
-      if (valIsZero && oldValue) {
-        // delete a value
-        this.kernel.environment.gasRefund += 15000
-        delete this.kernel.environment.state[contextAccount]['storage'][keyHex]
-      } else {
-        if (!valIsZero && !oldValue) {
-          // creating a new value
-          this.takeGas(15000)
-        }
-        // update
-        this.kernel.environment.state[contextAccount]['storage'][keyHex] = valueHex
+    log.debug('writing to storage, key/val:', keyHex, valueHex)
+
+    if (valIsZero && oldStorageVal) {
+      // delete a value
+      this.kernel.environment.gasRefund += 15000
+      delete this.kernel.environment.state[contextAccount]['storage'][keyHex]
+    } else {
+      if (!valIsZero && !oldStorageVal) {
+        // creating a new value
+        this.takeGas(15000)
       }
-    })
+      this.kernel.environment.state[contextAccount]['storage'][keyHex] = valueHex
+    }
   }
 
   /**
@@ -614,7 +614,7 @@ module.exports = class Interface {
    */
   storageLoad (keyOffset, resultOffset, cbIndex) {
     log.debug('EVMimports.js storageLoad')
-    log.trace('getBalance kernel.environment.state:', this.kernel.environment.state)
+    // log.debug('getBalance kernel.environment.state:', this.kernel.environment.state)
     this.takeGas(50)
 
     const key = this.getMemory(keyOffset, U256_SIZE_BYTES)
@@ -628,11 +628,8 @@ module.exports = class Interface {
       value = (new U256(value)).toMemory()
     }
 
-    const opPromise = Promise.resolve(value)
-
-    this.kernel.pushOpsQueue(opPromise, cbIndex, value => {
-      this.setMemory(resultOffset, U256_SIZE_BYTES, value)
-    })
+    // reverse() since SLOAD doesn't use callback_256 (which does bswap256)
+    this.setMemory(resultOffset, U256_SIZE_BYTES, value.reverse())
   }
 
   /**

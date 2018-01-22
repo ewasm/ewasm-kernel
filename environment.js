@@ -62,8 +62,15 @@ module.exports = class Environment {
     // }
   }
 
+  /*
   async getBlockHash (height) {
     const block = await this.blockchain.getBlock(height)
+    return block.hash()
+  }
+  */
+
+  getBlockHash (height) {
+    const block = this.blockchain.getBlock(height)
     return block.hash()
   }
 

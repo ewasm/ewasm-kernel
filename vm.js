@@ -1,3 +1,6 @@
+const log = require('loglevel')
+// log.setLevel('trace')
+
 module.exports = class VM {
   /**
    * The interface API is the api the exposed to interfaces. All queries about
@@ -10,6 +13,8 @@ module.exports = class VM {
   /**
    * Runs the core VM with a given environment and imports
    */
+  // TODO: make this sync
+  /*
   run (environment, imports) {
     this._environment = environment
     // TODO, delete the instance once done.
@@ -18,6 +23,18 @@ module.exports = class VM {
       instance.exports.main()
     }
     return this.onDone()
+  }
+  */
+
+  run (environment, imports) {
+    this._environment = environment
+    const instance = this._instance = WebAssembly.Instance(this._module, imports)
+    if (instance.exports.main) {
+      log.debug('vm.js calling instance.exports.main()...')
+      instance.exports.main()
+    }
+    log.debug('vm.js returning instance..')
+    return instance
   }
 
   /**
@@ -34,12 +51,14 @@ module.exports = class VM {
   /**
    * addes an aync operation to the operations queue
    */
+   /*
   pushOpsQueue (promise, callbackIndex, intefaceCallback) {
     this._opsQueue = Promise.all([this._opsQueue, promise]).then(values => {
       const result = intefaceCallback(values.pop())
       this._instance.exports[callbackIndex.toString()](result)
     })
   }
+  */
 
   sendMessage (message) {
 
