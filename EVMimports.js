@@ -131,9 +131,14 @@ module.exports = class Interface {
     const address = this.getMemory(addressOffset, ADDRESS_SIZE_BYTES)
     const addressHex = '0x' + Buffer.from(address).toString('hex')
 
-    const balance = this.kernel.environment.state[addressHex].balance
-    const balanceU256 = new U256(balance)
+    let balance
+    if (this.kernel.environment.state.hasOwnProperty(addressHex)) {
+      balance = this.kernel.environment.state[addressHex].balance
+    } else {
+      balance = '0x0'
+    }
 
+    const balanceU256 = new U256(balance)
     const opPromise = Promise.resolve(balanceU256)
 
     this.kernel.pushOpsQueue(opPromise, cbIndex, balance => {
@@ -228,9 +233,7 @@ module.exports = class Interface {
     log.debug('EVMImports.js getCodeSize')
     this.takeGas(2)
 
-    const opPromise = this.kernel.environment.state
-      .get('code')
-      .then(vertex => vertex.value.length)
+    const opPromise = Promise.resolve(this.kernel.environment.code.length)
 
     // wait for all the prevouse async ops to finish before running the callback
     this.kernel.pushOpsQueue(opPromise, cbIndex, length => length)
@@ -246,20 +249,23 @@ module.exports = class Interface {
     log.debug('EVMimports.js codeCopy')
     this.takeGas(3 + Math.ceil(length / 32) * 3)
 
-    let opPromise
+    const contextAccount = this.kernel.environment.address
+    let addressCode = Buffer.from([])
+    let codeCopied = Buffer.from([])
 
     if (length) {
-      opPromise = this.kernel.environment.state
-        .get('code')
-        .then(vertex => vertex.value)
-    } else {
-      opPromise = Promise.resolve([])
+      if (this.kernel.environment.state[contextAccount]) {
+        const hexCode = this.kernel.environment.state[contextAccount].code.slice(2)
+        addressCode = Buffer.from(hexCode, 'hex')
+        codeCopied = addressCode.slice(codeOffset, codeOffset + length)
+      }
     }
+
+    const opPromise = Promise.resolve(codeCopied)
 
     // wait for all the prevouse async ops to finish before running the callback
     this.kernel.pushOpsQueue(opPromise, cbIndex, code => {
       if (code.length) {
-        code = code.slice(codeOffset, codeOffset + length)
         this.setMemory(resultOffset, length, code)
       }
     })
@@ -273,11 +279,16 @@ module.exports = class Interface {
   getExternalCodeSize (addressOffset, cbOffset) {
     log.debug('EVMImports.js getExternalCodeSize')
     this.takeGas(20)
-    const address = [...this.getMemory(addressOffset, ADDRESS_SIZE_BYTES), 'code']
-    const opPromise = this.kernel.environment.state.root
-      .get(address)
-      .then(vertex => vertex.value.length)
-      .catch(() => 0)
+    const address = this.getMemory(addressOffset, ADDRESS_SIZE_BYTES)
+    const addressHex = '0x' + Buffer.from(address).toString('hex')
+
+    let addressCode = []
+    if (this.kernel.environment.state[addressHex]) {
+      const hexCode = this.kernel.environment.state[addressHex].code.slice(2)
+      addressCode = Buffer.from(hexCode, 'hex')
+    }
+
+    const opPromise = Promise.resolve(addressCode.length)
 
     // wait for all the prevouse async ops to finish before running the callback
     this.kernel.pushOpsQueue(opPromise, cbOffset, length => length)
@@ -294,17 +305,19 @@ module.exports = class Interface {
     log.debug('EVMImports.js externalCodeCopy')
     this.takeGas(20 + Math.ceil(length / 32) * 3)
 
-    const address = [...this.getMemory(addressOffset, ADDRESS_SIZE_BYTES), 'code']
-    let opPromise
+    const address = this.getMemory(addressOffset, ADDRESS_SIZE_BYTES)
+    const addressHex = '0x' + Buffer.from(address).toString('hex')
+
+    let addressCode = Buffer.from([])
 
     if (length) {
-      opPromise = this.kernel.environment.state.root
-        .get(address)
-        .then(vertex => vertex.value)
-        .catch(() => [])
-    } else {
-      opPromise = Promise.resolve([])
+      if (this.kernel.environment.state[addressHex]) {
+        const hexCode = this.kernel.environment.state[addressHex].code.slice(2)
+        addressCode = Buffer.from(hexCode, 'hex')
+      }
     }
+
+    let opPromise = Promise.resolve(addressCode)
 
     // wait for all the prevouse async ops to finish before running the callback
     this.kernel.pushOpsQueue(opPromise, cbIndex, code => {
@@ -525,21 +538,16 @@ module.exports = class Interface {
     log.debug('EVMimports.js callCode')
     this.takeGas(40)
     // Load the params from mem
-    const path = [...this.getMemory(addressOffset, ADDRESS_SIZE_BYTES), 'code']
+    // const address = this.getMemory(addressOffset, ADDRESS_SIZE_BYTES)
     const value = U256.fromMemory(this.getMemory(valueOffset, U128_SIZE_BYTES))
 
-    // Special case for non-zero value; why does this exist?
+    // makes vm test callcodeToReturn1 pass
     if (!value.isZero()) {
       this.takeGas(6700)
     }
 
-    // TODO: should be message?
-    const opPromise = this.kernel.environment.state.root.get(path)
-    .catch(() => {
-      // TODO: handle errors
-      // the value was not found
-      return null
-    })
+    // TODO: actually run code, using this.environment.callCode?
+    const opPromise = Promise.resolve(null)
 
     this.kernel.pushOpsQueue(opPromise, cbIndex, oldValue => {
       return 1
