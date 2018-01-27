@@ -124,7 +124,7 @@ module.exports = class Interface {
    * @param {integer} addressOffset the memory offset to laod the address
    * @param {integer} resultOffset
    */
-  getBalance (addressOffset, offset, cbIndex) {
+  getBalance (addressOffset, resultOffset, cbIndex) {
     log.debug('EVMImports.js getBalance')
     this.takeGas(20)
 
@@ -142,7 +142,7 @@ module.exports = class Interface {
     const opPromise = Promise.resolve(balanceU256)
 
     this.kernel.pushOpsQueue(opPromise, cbIndex, balance => {
-      this.setMemory(offset, U128_SIZE_BYTES, balance.toMemory(U128_SIZE_BYTES))
+      this.setMemory(resultOffset, U128_SIZE_BYTES, balance.toMemory(U128_SIZE_BYTES).reverse())
     })
   }
 
