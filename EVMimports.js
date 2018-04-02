@@ -495,12 +495,10 @@ module.exports = class Interface {
    * @param {integer} valueOffset the offset to load the value from
    * @param {integer} dataOffset the offset to load data from
    * @param {integer} dataLength the length of data
-   * @param {integer} resultOffset the offset to store the result data at
-   * @param {integer} resultLength
    * @param {integer} gas
    * @return {integer} Returns 1 or 0 depending on if the VM trapped on the message or not
    */
-  _call (gasHigh, gasLow, addressOffset, valueOffset, dataOffset, dataLength, resultOffset, resultLength, cbIndex) {
+  _call (gasHigh, gasLow, addressOffset, valueOffset, dataOffset, dataLength, cbIndex) {
     log.debug('EVMimports.js _call')
     this.takeGas(40)
 
@@ -517,7 +515,7 @@ module.exports = class Interface {
 
     const opPromise = Promise.resolve(0)
 
-    // wait for all the prevouse async ops to finish before running the callback
+    // wait for all the previous async ops to finish before running the callback
     this.kernel.pushOpsQueue(opPromise, cbIndex, () => {
       return 1
     })

@@ -2,7 +2,7 @@
   (import "interface" "useGas" (func $useGas (param i32 i32)))
   (import "interface" "getGasLeftHigh" (func $getGasLeftHigh (result i32)))
   (import "interface" "getGasLeftLow" (func $getGasLeftLow (result i32)))
-  (import "interface" "call" (func $call (param i32 i32 i32 i32 i32 i32 i32 i32 i32) (result i32)))
+  (import "interface" "call" (func $call (param i32 i32 i32 i32 i32 i32 i32) (result i32)))
 
   (export "useGas" (func $useGasShim))
   (export "getGasLeft" (func $getGasLeft))
@@ -26,9 +26,10 @@
   )
 
   ;; call
-  ;; (import $call "ethereum" "call" (param i32 i32 i32 i32 i32 i32 i32 i32) (result i32))
+  ;; (import $call "ethereum" "call" (param i64 i32 i32 i32 i32) (result i32))
   (func $callShim
-    (param i64 i32 i32 i32 i32 i32 i32 i32)
+    ;; adds a cbIndex to the end of the params hence once greater than EEI method
+    (param i64 i32 i32 i32 i32 i32)
     (result i32)
     (call $call
            (i32.wrap/i64 
@@ -39,8 +40,6 @@
            (get_local 3)
            (get_local 4)
            (get_local 5)
-           (get_local 6)
-           (get_local 7)
     )
   )
 )
