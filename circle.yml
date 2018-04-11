@@ -1,0 +1,55 @@
+defaults:
+  install-deps: &install-deps
+    run:
+      name: "Install dependencies"
+      command: |
+        apt update -y
+        apt install -y curl cmake git g++
+        curl -sL https://deb.nodesource.com/setup_8.x | bash -
+        apt install -y nodejs
+        npm install
+        npm ln
+  lint: &lint
+    run:
+      name: "Lint source code"
+      command: |
+        npm run lint
+  install-evm2wasm: &install-evm2wasm
+    run:
+      working_directory: /home/
+      name: "clone and install evm2wasm"
+      command: |
+        git clone --recursive https://github.com/ewasm/evm2wasm
+        cd evm2wasm
+        cd tools/wabt
+        cmake -DBUILD_TESTS=OFF
+        make -j8
+        cd ..
+        npm install
+  vm-tests: &vm-tests
+    run:
+      working_directory: /home/evm2wasm
+      name: "Run ethereum VM tests"
+      command: |
+        npm run vmTests
+
+  build-steps: &build-steps
+    - checkout
+    - *install-deps
+    # - *lint
+    - *install-evm2wasm
+    - *vm-tests
+
+version: 2
+jobs:
+  # to run this using local circleci tool, rename Ewasm-Tests to `build` then do `circleci build -c circle.yml`
+  build:
+    docker:
+      - image: ubuntu:xenial
+    steps: *build-steps
+
+workflows:
+  version: 2
+  ewasm-kernel-build:
+    jobs:
+       - build
