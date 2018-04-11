@@ -36,7 +36,7 @@ defaults:
   build-steps: &build-steps
     - checkout
     - *install-deps
-    # - *lint
+    - *lint
     - *install-evm2wasm
     - *vm-tests
 
