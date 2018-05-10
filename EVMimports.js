@@ -589,10 +589,13 @@ module.exports = class Interface {
     this.takeGas(5000)
 
     const key = this.getMemory(keyOffset, U256_SIZE_BYTES)
+    key.reverse()
     const keyHex = U256.fromMemory(key).toString(16)
 
     const value = this.getMemory(valueOffset, U256_SIZE_BYTES).slice(0)
+    value.reverse()
     const valueHex = U256.fromMemory(value).toString(16)
+
     const valIsZero = value.every((i) => i === 0)
 
     const contextAccount = this.kernel.environment.address
@@ -626,6 +629,7 @@ module.exports = class Interface {
     this.takeGas(50)
 
     const key = this.getMemory(keyOffset, U256_SIZE_BYTES)
+    key.reverse()
     const keyHex = U256.fromMemory(key).toString(16)
 
     const contextAccount = this.kernel.environment.address
